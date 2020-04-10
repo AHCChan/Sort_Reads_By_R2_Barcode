@@ -242,6 +242,7 @@ STR__metrics_absents =     "Total Absents:     {s} ( {p1}% of usable, {p2}% "\
         "of total)"
 
 
+
 STR__parsing_args = "\nParsing arguments..."
 
 STR__sort_by_r2_bcode_begin = "\nRunning Sort_by_r2_BCode..."
@@ -407,7 +408,7 @@ def Sort_By_R2_Barcode(paths_in, paths_out, barcode, thresholds, remove):
             count_total, 2, 6)
     p1_match, p1_partial, p1_absent = Get_Percentage_Strings([count_match,
             count_partial, count_absent], count_usable, 2, 6)
-     
+    
     printM(STR__metrics_pairs.format(s = s_total))
     printM(STR__metrics_usables.format(s = s_usable, p = p_usable))
     printM(STR__metrics_unreadables.format(s = s_NNN, p = p_NNN))
@@ -455,7 +456,7 @@ def Create_Output(ID, seq, placeholder, scores):
     
     Create_Output(str, str, str, str) -> str
     """
-    sb = ID + "\n" + seq + "\n" + placeholder + "\n" + scores
+    sb = ID + "\n" + seq + "\n" + placeholder + "\n" + scores + "\n"
     return sb
 
 
