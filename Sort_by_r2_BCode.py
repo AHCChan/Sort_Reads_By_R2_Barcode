@@ -159,6 +159,9 @@ FILEMOD__MATCH =   "__MATCH"
 FILEMOD__PARTIAL = "__PARTIAL"
 FILEMOD__ABSENT =  "__ABSENT"
 
+CONFIG__N_SPAM_CUTOFF = 10 # If the first N nucleotides are all N on both reads,
+#                            then regard the read as "unreadable"
+
 
 # Defaults #####################################################################
 "NOTE: altering these will not alter the values displayed in the HELP DOC"
@@ -220,17 +223,24 @@ regarded as containing a perfect/partial match.
 STR__specify_remove = """
 ERROR: Please specify whether you wish to remove the barcodes or not."""
 
-STR__invalid_threshold = "\nERROR: Please specify a non-negative integer."
+STR__invalid_threshold = "\nERROR: Please specify a non-negative integer for "\
+        "your cutoff thresholds."
 
 STR__overwrite_confirm = "\nFile already exists:\n\t{f}\nDo you wish to "\
         "overwrite it? (y/n): "
 
 
 
-STR__metrics_pairs =   "\nTotal Pairs  :  {s}"
-STR__metrics_matches =   "Total Matches:  {s} ( {p}% )"
-STR__metrics_partials =  "Total Partials: {s} ( {p}% )"
-STR__metrics_absents =   "Total Absents:  {s} ( {p}% )"
+STR__metrics_pairs =     "\nTotal Pairs:       {s}"
+STR__metrics_usables =   "\nUsable Pairs:      {s} ( {p}% )"
+STR__metrics_unreadables = "Unreadables Pairs: {s} ( {p}% )"
+STR__metrics_matches =   "\nTotal Matches:     {s} ( {p1}% of usable, {p2}% "\
+        "of total)"
+STR__metrics_partials =    "Total Partials:    {s} ( {p1}% of usable, {p2}% "\
+        "of total)"
+STR__metrics_absents =     "Total Absents:     {s} ( {p1}% of usable, {p2}% "\
+        "of total)"
+
 
 STR__parsing_args = "\nParsing arguments..."
 
@@ -250,6 +260,12 @@ LIST__no = ["N", "n", "NO", "No", "no", "F", "f", "FALSE", "False", "false"]
 
 
 # Dictionaries #################################################################
+
+
+
+# Resolve Variables ############################################################
+
+SEQ__N_SPAM_SEQ = "N" * CONFIG__N_SPAM_CUTOFF
 
 
 
@@ -287,11 +303,13 @@ def Sort_By_R2_Barcode(paths_in, paths_out, barcode, thresholds, remove):
             int]) -> int
     """
     printP(STR__sort_by_r2_bcode_begin)
-    print(paths_in, paths_out, barcode, thresholds, remove)
+
+    # Unpack
+    threshold_match, threshold_partial = thresholds
     
     # Initialize File IO
-    r1 = open(paths_in[0], "U")
-    r2 = open(paths_in[1], "U")
+    f1 = open(paths_in[0], "U")
+    f2 = open(paths_in[1], "U")
     w1 = open(paths_out[0], "w")
     w2 = open(paths_out[1], "w")
     w3 = open(paths_out[2], "w")
@@ -301,11 +319,71 @@ def Sort_By_R2_Barcode(paths_in, paths_out, barcode, thresholds, remove):
     
     # Initialize Metrics
     count_total = 0
+    count_NNN = 0
     count_match = 0
     count_partial = 0
     count_absent = 0
     
+    # Preparatory Calculations
+    length = len(barcode)
+    
     # Main Loop
+    r1_ID, r1_seq, r1_3rd, r1_qc = Parse_Read(f1)
+    r2_ID, r2_seq, r2_3rd, r2_qc = Parse_Read(f2)
+
+    while r1_seq and r2_seq:
+        count_total += 1
+        
+        # Unreadable
+        subseq1 = r1_seq[:CONFIG__N_SPAM_CUTOFF]
+        subseq2 = r2_seq[:CONFIG__N_SPAM_CUTOFF]
+        if SEQ__N_SPAM_SEQ == subseq1 == subseq2: count_NNN += 1
+        
+        else: # Not unreadable
+            subseq = r2_seq[:length]
+            mismatches = NSeq_Match.NSeq_Match(barcode, subseq)
+            
+            output_file_1 = None
+            output_file_2 = None
+            
+            # Match
+            if mismatches <= threshold_match:
+                count_match += 1
+                # Remove
+                if remove:
+                    r2_seq = r2_seq[length:]
+                    r2_qc = r2_qc[length:]
+                # Target
+                output_file_1 = w1
+                output_file_2 = w2
+            
+            # Partial
+            elif mismatches <= threshold_partial:
+                count_partial += 1
+                # Remove
+                if remove:
+                    r2_seq = r2_seq[length:]
+                    r2_qc = r2_qc[length:]
+                # Target
+                output_file_1 = w3
+                output_file_2 = w4
+            
+            # Absent
+            else:
+                count_absent += 1
+                # Target
+                output_file_1 = w5
+                output_file_2 = w6
+            
+            # Build strings and write
+            string1 = Create_Output(r1_ID, r1_seq, r1_3rd, r1_qc)
+            string2 = Create_Output(r2_ID, r2_seq, r2_3rd, r2_qc)
+            output_file_1.write(string1)
+            output_file_2.write(string2)
+        
+        # Read next
+        r1_ID, r1_seq, r1_3rd, r1_qc = Parse_Read(f1)
+        r2_ID, r2_seq, r2_3rd, r2_qc = Parse_Read(f2)
     
     # Finish
     w6.close()
@@ -314,20 +392,31 @@ def Sort_By_R2_Barcode(paths_in, paths_out, barcode, thresholds, remove):
     w3.close()
     w2.close()
     w1.close()
-    r2.close()
-    r1.close()
+    f2.close()
+    f1.close()
 
     # Metrics Reporting
-    s_total, s_match, s_partial, s_absent = Ints_To_Aligned_Strings(
-            [count_total, count_match, count_partial, count_absent],
-            ALIGN.RIGHT)
-    p_match, p_partial, p_absent = Get_Percentage_Strings([count_match,
-            count_partial, count_absent], count_total, 2, 6)
+    count_usable = count_total - count_NNN
     
+    strings = Ints_To_Aligned_Strings([count_total, count_usable, count_NNN,
+            count_match, count_partial, count_absent], ALIGN.RIGHT)
+    s_total, s_usable, s_NNN, s_match, s_partial, s_absent = strings
+    
+    p_usable, p_NNN, p2_match, p2_partial, p2_absent = Get_Percentage_Strings(
+            [count_usable, count_NNN, count_match, count_partial, count_absent],
+            count_total, 2, 6)
+    p1_match, p1_partial, p1_absent = Get_Percentage_Strings([count_match,
+            count_partial, count_absent], count_usable, 2, 6)
+     
     printM(STR__metrics_pairs.format(s = s_total))
-    printM(STR__metrics_matches.format(s = s_match, p = p_match))
-    printM(STR__metrics_partials.format(s = s_partial, p = p_partial))
-    printM(STR__metrics_absents.format(s = s_absent, p = p_absent))
+    printM(STR__metrics_usables.format(s = s_usable, p = p_usable))
+    printM(STR__metrics_unreadables.format(s = s_NNN, p = p_NNN))
+    printM(STR__metrics_matches.format(s = s_match, p1 = p1_match,
+            p2 = p2_match))
+    printM(STR__metrics_partials.format(s = s_partial, p1 = p1_partial,
+            p2 = p2_partial))
+    printM(STR__metrics_absents.format(s = s_absent, p1 = p1_absent,
+            p2 = p2_absent))
     
     # Exit
     printP(STR__sort_by_r2_bcode_complete)
@@ -335,16 +424,27 @@ def Sort_By_R2_Barcode(paths_in, paths_out, barcode, thresholds, remove):
 
 
 
-def Parse_Lines(file_):
+def Parse_Read(file_):
     """
     Parse an entry from a FASTQ file. Return a list containing the read's ID,
     sequence, placeholder line, and QC scores.
     
     Return an empty list if there are no reads left.
     
-    Parse_Line(file) -> list<str>[4]
+    Parse_Read(file) -> list<str>[4]
     """
-    return []
+    # Read
+    ID = file_.readline()
+    seq = file_.readline()
+    placeholder = file_.readline()
+    scores = file_.readline()
+    # Strip
+    ID = ID.strip("\n")
+    seq = seq.strip("\n")
+    placeholder = placeholder.strip("\n")
+    scores = scores.strip("\n")
+    # Return
+    return [ID, seq, placeholder, scores]
 
 
 
@@ -355,7 +455,8 @@ def Create_Output(ID, seq, placeholder, scores):
     
     Create_Output(str, str, str, str) -> str
     """
-    return ""
+    sb = ID + "\n" + seq + "\n" + placeholder + "\n" + scores
+    return sb
 
 
 
@@ -522,25 +623,31 @@ def Parse_Command_Line_Input__Sort_By_R2_BCode(raw_command_line_input):
         arg = inputs.pop(0)
         if arg == "-o": # Output files
             try:
-                inputs.pop(0)
-                inputs.pop(0)
-                inputs.pop(0)
-                inputs.pop(0)
-                inputs.pop(0)
-                inputs.pop(0)
+                paths_out = [inputs.pop(0), inputs.pop(0), inputs.pop(0),
+                        inputs.pop(0), inputs.pop(0), inputs.pop(0)]
             except:
                 printE(STR__specify_6_arguments_for_outputs)
         elif arg == "-t": # Thresholds
             try:
-                inputs.pop(0)
-                inputs.pop(0)
+                t1 = inputs.pop(0)
+                t2 = inputs.pop(0)
             except:
                 printE(STR__specify_2_arguments_for_thresholds)
+            v1 = Validate_Threshold(t1)
+            v2 = Validate_Threshold(t2)
+            if v1 == -1 or v2 == -1:
+                printE(STR__invalid_threshold)
+                return 1
+            thresholds = [v1, v2]
         elif arg == "-r": # Remove barcodes
             try:
-                inputs.pop(0)
+                b = inputs.pop(0)
             except:
                 printE(STR__specify_remove)
+            remove = Validate_Boolean(b)
+            if remove == None:
+                printE
+                return 1
         else: # Invalid
             arg = Strip_X(arg)
             printE(STR__invalid_argument.format(s = arg))
@@ -726,8 +833,27 @@ def Validate_Threshold(string):
         n = int(string)
     except:
         return -1
-    if n < 1: return -1
+    if n < 0: return -1
     return n
+
+
+
+def Validate_Boolean(string):
+    """
+    Validates and returns a boolean, based on the string given.
+    Return None if the input is invalid.
+    
+    @string
+        (str)
+        A string denoting either True, False, Yes, or No.
+        
+    Validate_Column_Number(str) -> bool
+    OR
+    Validate_Column_Number(str) -> None
+    """
+    if string in LIST__yes: return True
+    if string in LIST__no: return False
+    return None
 
 
 
