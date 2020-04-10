@@ -23,13 +23,13 @@ You don't need to know how to use git to get this program, nor the libraries
 which this program needs to run.
 
 You can simply open the files:
-        NSeq_Match.py
-        Sort_by_r2_BCode.py
+    NSeq_Match.py
+    Sort_by_r2_BCode.py
 ... in your online browser and copy their contents onto a local file on your
 computer with the same name. Ensure that these files are in the same folder.
 
 Supporting files are available at:
-        https://github.com/AHCChan/NSeq_Match
+    https://github.com/AHCChan/NSeq_Match
 
 
 
