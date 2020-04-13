@@ -1,6 +1,6 @@
 
-C:\Python27\python.exe ..\Sort_by_r2_BCode.py Test_1_R1.fq Test_2_R1.fq CGTGAT
+C:\Python27\python.exe ..\Sort_by_r2_BCode.py Test_1_R1.fq Test_1_R2.fq CGTGAT
 
-C:\Python27\python.exe ..\Sort_by_r2_BCode.py Test_1_R1.fq Test_2_R1.fq CGTGAT -o match_r1.fq match_r2.fq partial_r1.fq partial_r2.fq absent_r1.fq absent_r2.fq -t 0 1 -r YES
+C:\Python27\python.exe ..\Sort_by_r2_BCode.py Test_1_R1.fq Test_1_R2.fq CGTGAT -o match_r1.fq match_r2.fq partial_r1.fq partial_r2.fq absent_r1.fq absent_r2.fq -t 0 1 -r YES YES
 
 
