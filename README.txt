@@ -9,7 +9,7 @@
 
 REQUIREMENTS
 
-This program requires the NSeq_Match library.
+This program requires the NSeq_Match library. (v2.0+)
 
 This program runs in Python 2. It will not work properly with Python 3.
 Please ensure you have Python 2 installed on your computer.
