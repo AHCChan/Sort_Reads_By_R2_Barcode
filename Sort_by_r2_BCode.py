@@ -243,6 +243,8 @@ any complete or partial barcode matches from the sequences.
 STR__invalid_threshold = "\nERROR: Please specify a non-negative integer for "\
         "your cutoff thresholds."
 
+STR__invalid_bool = "\nERROR: Please specify Yes/No. You specified:\n\t{s}"
+
 STR__overwrite_confirm = "\nFile already exists:\n\t{f}\nDo you wish to "\
         "overwrite it? (y/n): "
 
@@ -682,8 +684,11 @@ def Parse_Command_Line_Input__Sort_By_R2_BCode(raw_command_line_input):
                 printE(STR__specify_2_arguments_for_remove)
             r1 = Validate_Boolean(r1)
             r2 = Validate_Boolean(r2)
-            if r1 == None or r2 == None:
-                printE
+            if r1 == None:
+                printE(STR__invalid_bool.format(s = r1))
+                return 1
+            if r2 == None:
+                printE(STR__invalid_bool.format(s = r2))
                 return 1
             removes = [r1, r2]
         else: # Invalid
